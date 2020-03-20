@@ -48,10 +48,35 @@
 
 
     <script>
-        
+        window.addEventListener(`load`, ()=> {
+            let long;
+            let lat;
+
+            if (navigator.geolocation){
+                navigator.geolocation.getCurrentPosition(position =>{
+                    console.log(position)
+                    long = position.coords.longitude;
+                    lat = position.coords.latitude;
+
+                    var proxy = `https://cors-anywhere.herokuapp.com/`;
+                    var api = `${proxy}https://api.darksky.net/forecast/1d0540e1317ba2226eb9517fbd210e19/${lat},${long}`;
+                   
+                   
+                    fetch(api)
+                        .then (Response => {
+                            return Response.json();
+                        })
+                        .then (data => {
+                            console.log(data);
+                        });
+                });
+            }
+        });
 
 
     </script>
+    
+    
     <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
         integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
         crossorigin="anonymous"></script>
