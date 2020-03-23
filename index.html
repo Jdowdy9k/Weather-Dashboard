@@ -16,11 +16,11 @@
 <body>
     <div class="jumbotron jumbotron-fluid" style="text-align: center;">
         <div class="container">
-          <h1 class="display-4">Weather Dashboard</h1>
-          
+            <h1 class="display-4">Weather Dashboard</h1>
+
         </div>
     </div>
-     
+
 
     <div class="row">
         <div class="col-md-3 searcharea" style="text-align: left;">
@@ -38,7 +38,7 @@
                 <!--Buttons for previous searches here-->
             </div>
             <div class="col-md-9">
-                <div class="container" id="Forecast">
+                <div class="container" id="forecast">
                     <!--Weather for current location-->
                 </div>
             </div>
@@ -47,36 +47,186 @@
 
 
 
-    <script>
-        window.addEventListener(`load`, ()=> {
-            let long;
-            let lat;
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script type="text/javascript">
 
-            if (navigator.geolocation){
-                navigator.geolocation.getCurrentPosition(position =>{
-                    console.log(position)
-                    long = position.coords.longitude;
-                    lat = position.coords.latitude;
+        var userCity = document.querySelector(`#searchinput`);
+        var proForecast = document.querySelector("#forecast");
+        var queryURL = `https://api.openweathermap.org/data/2.5/forecast?q=` + `Richmond` + `&appid=dbb9394c6820888c0a5fbe3fdd85bd8e`;
+        var savedLocations = [];
+        var currentLoc;
 
-                    var proxy = `https://cors-anywhere.herokuapp.com/`;
-                    var api = `${proxy}https://api.darksky.net/forecast/1d0540e1317ba2226eb9517fbd210e19/${lat},${long}`;
-                   
-                   
-                    fetch(api)
-                        .then (Response => {
-                            return Response.json();
-                        })
-                        .then (data => {
-                            console.log(data);
-                        });
-                });
+        function initialize() {
+            //grab previous locations from local storage
+            savedLocations = JSON.parse(localStorage.getItem("weathercities"));
+            var lastSearch;
+            if (savedLocations) {
+                currentLoc = savedLocations[savedLocations.length - 1];
+                showPrevious();
+                getCurrent(currentLoc);
             }
+            else {
+                if (!navigator.geolocation) {
+                    //can't geolocate and no previous searches, give them Richmond
+                    getCurrent("Richmond");
+                }
+                else {
+                    navigator.geolocation.getCurrentPosition(success, error);
+                }
+            }
+
+        }
+
+
+
+        function success(position) {
+            var lat = position.coords.latitude;
+            var lon = position.coords.longitude;
+            var queryURL = `https://api.openweathermap.org/data/2.5/weather?lat=` + lat + "&lon=" + lon + `&appid=dbb9394c6820888c0a5fbe3fdd85bd8e`;
+            $.ajax({
+                url: queryURL,
+                method: "GET"
+            }).then(function (response) {
+                currentLoc = response.name;
+                saveLoc(response.name);
+                getCurrent(currentLoc);
+            });
+
+        }
+
+        function error() {
+            //can't geolocate and no previous searches, give them Richmond
+            currentLoc = "Richmond"
+            getCurrent(currentLoc);
+        }
+
+        function showPrevious() {
+            //show the previously searched for locations based on what is in local storage
+            if (savedLocations) {
+                $("#prevSearches").empty();
+                var btns = $("<div>").attr("class", "list-group");
+                for (var i = 0; i < savedLocations.length; i++) {
+                    var locBtn = $("<a>").attr("href", "#").attr("id", "loc-btn").text(savedLocations[i]);
+                    if (savedLocations[i] == currentLoc) {
+                        locBtn.attr("class", "list-group-item list-group-item-action active");
+                    }
+                    else {
+                        locBtn.attr("class", "list-group-item list-group-item-action");
+                    }
+                    btns.prepend(locBtn);
+                }
+                $("#prevSearches").append(btns);
+            }
+        }
+
+        function getCurrent(city) {
+            var queryURL = `https://api.openweathermap.org/data/2.5/weather?q=` + city + `&appid=dbb9394c6820888c0a5fbe3fdd85bd8e&units=imperial`;
+            $.ajax({
+                url: queryURL,
+                method: "GET",
+                error: function () {
+                    savedLocations.splice(savedLocations.indexOf(city), 1);
+                    localStorage.setItem("weathercities", JSON.stringify(savedLocations));
+                    initialize();
+                }
+            }).then(function (response) {
+                //create the card
+                var currCard = $("<div>").attr("class", "card bg-light");
+                $("#earthforecast").append(currCard);
+
+                //add location to card header
+                var currCardHead = $("<div>").attr("class", "card-header").text("Current weather for " + response.name);
+                currCard.append(currCardHead);
+
+                var cardRow = $("<div>").attr("class", "row no-gutters");
+                currCard.append(cardRow);
+
+                //get icon for weather conditions
+                var iconURL = `https://openweathermap.org/img/wn/` + response.weather[0].icon + "@2x.png";
+
+                var imgDiv = $("<div>").attr("class", "col-md-4").append($("<img>").attr("src", iconURL).attr("class", "card-img"));
+                cardRow.append(imgDiv);
+
+                var textDiv = $("<div>").attr("class", "col-md-8");
+                var cardBody = $("<div>").attr("class", "card-body");
+                textDiv.append(cardBody);
+                //display city name
+                cardBody.append($("<h3>").attr("class", "card-title").text(response.name));
+                //display last updated
+                var currdate = moment(response.dt, "X").format("dddd, MMMM Do YYYY, h:mm a");
+                cardBody.append($("<p>").attr("class", "card-text").append($("<small>").attr("class", "text-muted").text("Last updated: " + currdate)));
+                //display Temperature
+                cardBody.append($("<p>").attr("class", "card-text").html("Temperature: " + response.main.temp + " &#8457;"));
+                //display Humidity
+                cardBody.append($("<p>").attr("class", "card-text").text("Humidity: " + response.main.humidity + "%"));
+                //display Wind Speed
+                cardBody.append($("<p>").attr("class", "card-text").text("Wind Speed: " + response.wind.speed + " MPH"));
+
+                //get UV Index
+                var uvURL = `https://api.openweathermap.org/data/2.5/uvi?appid=dbb9394c6820888c0a5fbe3fdd85bd8e&lat=` + response.coord.lat + "&lon=" + response.coord.lat;
+                $.ajax({
+                    url: uvURL,
+                    method: "GET"
+                }).then(function (uvresponse) {
+                    var uvindex = uvresponse.value;
+                    var bgcolor;
+                    if (uvindex <= 3) {
+                        bgcolor = "green";
+                    }
+                    else if (uvindex >= 3 || uvindex <= 6) {
+                        bgcolor = "yellow";
+                    }
+                    else if (uvindex >= 6 || uvindex <= 8) {
+                        bgcolor = "orange";
+                    }
+                    else {
+                        bgcolor = "red";
+                    }
+                    var uvdisp = $("<p>").attr("class", "card-text").text("UV Index: ");
+                    uvdisp.append($("<span>").attr("class", "uvindex").attr("style", ("background-color:" + bgcolor)).text(uvindex));
+                    cardBody.append(uvdisp);
+
+                });
+
+                cardRow.append(textDiv);
+                getForecast(response.id);
+            });
+        }
+
+
+
+
+                
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        $("#searchbtn").on("click", function () {
+            fetch(queryURL)
+                .then(Response => {
+                    return Response.json();
+                })
+                .then(data => {
+                    console.log(data);
+                    //const { temperature, summary } = data.currently;
+                    //forecast.textContent = temperature + summary;
+                });
         });
 
 
     </script>
-    
-    
+
+
     <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
         integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
         crossorigin="anonymous"></script>
